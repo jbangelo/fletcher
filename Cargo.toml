@@ -1,0 +1,6 @@
+[package]
+name = "fletcher"
+version = "0.0.1"
+authors = ["Joseph Angelo <b.j.angelo@gmail.com>"]
+
+[dependencies]
