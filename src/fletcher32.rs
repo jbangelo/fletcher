@@ -13,8 +13,15 @@ impl Fletcher32 {
 
     pub fn update(&mut self, data: &Vec<u16>) {
         for byte in data {
-            let new_a = (self.a + *byte as u32) % 65536;
-            let new_b = (self.b + new_a) % 65536;
+            let mut new_a = self.a + *byte as u32;
+            if new_a >= 65535 {
+                new_a -= 65535;
+            }
+
+            let mut new_b = self.b + new_a;
+            if new_b >= 65535 {
+                new_b -= 65535;
+            }
 
             self.a = new_a;
             self.b = new_b;

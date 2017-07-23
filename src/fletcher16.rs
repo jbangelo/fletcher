@@ -13,8 +13,15 @@ impl Fletcher16 {
 
     pub fn update(&mut self, data: &Vec<u8>) {
         for byte in data {
-            let new_a = (self.a + *byte as u16) % 256;
-            let new_b = (self.b + new_a) % 256;
+            let mut new_a = self.a + *byte as u16;
+            if new_a >= 255 {
+                new_a -= 255;
+            }
+
+            let mut new_b = self.b + new_a;
+            if new_b >= 255 {
+                new_b -= 255;
+            }
 
             self.a = new_a;
             self.b = new_b;
