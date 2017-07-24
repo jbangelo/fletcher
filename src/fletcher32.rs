@@ -3,6 +3,9 @@ pub struct Fletcher32 {
     b: u32,
 }
 
+const MAX_CHUNK_SIZE: usize = 65536;
+const REDUCE_BY_VALUE: u32 = 65535;
+
 impl Fletcher32 {
     pub fn new() -> Fletcher32 {
         Fletcher32 {
@@ -12,23 +15,28 @@ impl Fletcher32 {
     }
 
     pub fn update(&mut self, data: &Vec<u16>) {
-        for byte in data {
-            let mut new_a = self.a + *byte as u32;
-            if new_a >= 65535 {
-                new_a -= 65535;
+        for chunk in data.chunks(MAX_CHUNK_SIZE) {
+            let mut intermediate_a = self.a;
+            let mut intermediate_b = self.b;
+
+            for byte in chunk {
+                intermediate_a += *byte as u32;
+                intermediate_b += intermediate_a;
             }
 
-            let mut new_b = self.b + new_a;
-            if new_b >= 65535 {
-                new_b -= 65535;
-            }
-
-            self.a = new_a;
-            self.b = new_b;
+            self.a = Fletcher32::reduce(intermediate_a);
+            self.b = Fletcher32::reduce(intermediate_b);
         }
     }
 
     pub fn value(&self) -> u32 {
         self.a | (self.b << 16)
+    }
+
+    fn reduce(mut value: u32) -> u32 {
+        while value > REDUCE_BY_VALUE {
+            value -= REDUCE_BY_VALUE;
+        }
+        value
     }
 }
