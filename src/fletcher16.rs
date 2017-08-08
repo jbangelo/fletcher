@@ -4,8 +4,12 @@ use generic_fletcher::FletcherSum;
 pub type Fletcher16 = Fletcher<u16, u8>;
 
 impl FletcherSum<u8> for u16 {
+    fn default_value() -> Self {
+        0x00ff
+    }
+
     fn max_chunk_size() -> usize {
-        20
+        21
     }
 
     fn combine(lower: &Self, upper: &Self) -> Self {

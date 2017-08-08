@@ -11,9 +11,23 @@ mod tests {
         let mut checksum = super::fletcher16::Fletcher16::new();
 
         checksum.update(&data);
-        println!("{}", checksum.value());
         assert!(checksum.value() == 0x3fad);
+    }
 
+    #[test]
+    fn fletcher16_underflow() {
+        let zeros = vec![0; 200000usize];
+        let mut checksum = super::fletcher16::Fletcher16::new();
+        checksum.update(&zeros);
+        assert!(checksum.value() == 0xffff);
+    }
+
+    #[test]
+    fn fletcher16_overflow() {
+        let zeros = vec![0xff; 200000usize];
+        let mut checksum = super::fletcher16::Fletcher16::new();
+        checksum.update(&zeros);
+        assert!(checksum.value() == 0xffff);
     }
 
     #[test]
@@ -24,5 +38,37 @@ mod tests {
         checksum.update(&data);
         println!("{}", checksum.value());
         assert!(checksum.value() == 0xdcf30fb3);
+    }
+
+    #[test]
+    fn fletcher32_underflow() {
+        let zeros = vec![0; 200000usize];
+        let mut checksum = super::fletcher32::Fletcher32::new();
+        checksum.update(&zeros);
+        assert!(checksum.value() == 0xffffffff);
+    }
+
+    #[test]
+    fn fletcher32_overflow() {
+        let zeros = vec![0xffff; 200000usize];
+        let mut checksum = super::fletcher32::Fletcher32::new();
+        checksum.update(&zeros);
+        assert!(checksum.value() == 0xffffffff);
+    }
+
+    #[test]
+    fn fletcher64_underflow() {
+        let zeros = vec![0; 200000usize];
+        let mut checksum = super::fletcher64::Fletcher64::new();
+        checksum.update(&zeros);
+        assert!(checksum.value() == 0xffffffffffffffff);
+    }
+
+    #[test]
+    fn fletcher64_overflow() {
+        let zeros = vec![0xffffffff; 200000usize];
+        let mut checksum = super::fletcher64::Fletcher64::new();
+        checksum.update(&zeros);
+        assert!(checksum.value() == 0xffffffffffffffff);
     }
 }

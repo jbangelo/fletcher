@@ -3,10 +3,8 @@ use std::marker::PhantomData;
 use std::marker::Copy;
 
 pub trait FletcherSum<T>
-    : Default + Add<Self> + From<T> + From<<Self as Add>::Output> + Copy
-where
-    T: Copy,
-{
+    : Add<Self> + From<T> + From<<Self as Add>::Output> + Copy {
+    fn default_value() -> Self;
     fn max_chunk_size() -> usize;
     fn combine(lower: &Self, upper: &Self) -> Self;
     fn reduce(self) -> Self;
@@ -25,8 +23,8 @@ where
 {
     pub fn new() -> Fletcher<T, U> {
         Fletcher {
-            a: Default::default(),
-            b: Default::default(),
+            a: T::default_value(),
+            b: T::default_value(),
             phantom: PhantomData,
         }
     }
