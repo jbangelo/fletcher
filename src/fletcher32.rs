@@ -1,42 +1,18 @@
-pub struct Fletcher32 {
-    a: u32,
-    b: u32,
-}
+use generic_fletcher::Fletcher;
+use generic_fletcher::FletcherSum;
 
-const MAX_CHUNK_SIZE: usize = 65536;
-const REDUCE_BY_VALUE: u32 = 65535;
+pub type Fletcher32 = Fletcher<u32, u16>;
 
-impl Fletcher32 {
-    pub fn new() -> Fletcher32 {
-        Fletcher32 {
-            a: 0x0000ffff,
-            b: 0x0000ffff,
-        }
+impl FletcherSum<u16> for u32 {
+    fn max_chunk_size() -> usize {
+        359
     }
 
-    pub fn update(&mut self, data: &Vec<u16>) {
-        for chunk in data.chunks(MAX_CHUNK_SIZE) {
-            let mut intermediate_a = self.a;
-            let mut intermediate_b = self.b;
-
-            for byte in chunk {
-                intermediate_a += *byte as u32;
-                intermediate_b += intermediate_a;
-            }
-
-            self.a = Fletcher32::reduce(intermediate_a);
-            self.b = Fletcher32::reduce(intermediate_b);
-        }
+    fn combine(lower: &Self, upper: &Self) -> Self {
+        lower | (upper << 16)
     }
 
-    pub fn value(&self) -> u32 {
-        self.a | (self.b << 16)
-    }
-
-    fn reduce(mut value: u32) -> u32 {
-        while value > REDUCE_BY_VALUE {
-            value -= REDUCE_BY_VALUE;
-        }
-        value
+    fn reduce(self) -> Self {
+        (self & 0xffff) + (self >> 16)
     }
 }

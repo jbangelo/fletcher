@@ -1,3 +1,4 @@
+pub mod generic_fletcher;
 pub mod fletcher16;
 pub mod fletcher32;
 
