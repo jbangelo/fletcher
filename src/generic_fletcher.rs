@@ -29,7 +29,7 @@ where
         }
     }
 
-    pub fn update(&mut self, data: &Vec<U>) {
+    pub fn update(&mut self, data: &[U]) {
         let max_chunk_size = T::max_chunk_size();
 
         for chunk in data.chunks(max_chunk_size) {
