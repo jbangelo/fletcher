@@ -1,6 +1,7 @@
 pub mod generic_fletcher;
 pub mod fletcher16;
 pub mod fletcher32;
+pub mod fletcher64;
 
 #[cfg(test)]
 mod tests {
