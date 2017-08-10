@@ -2,7 +2,7 @@ use std::ops::Add;
 use std::marker::PhantomData;
 use std::marker::Copy;
 
-pub trait FletcherSum<T>
+pub trait FletcherAccumulator<T>
     : Add<Self> + From<T> + From<<Self as Add>::Output> + Copy {
     fn default_value() -> Self;
     fn max_chunk_size() -> usize;
@@ -18,7 +18,7 @@ pub struct Fletcher<T, U> {
 
 impl<T, U> Fletcher<T, U>
 where
-    T: FletcherSum<U>,
+    T: FletcherAccumulator<U>,
     U: Copy,
 {
     pub fn new() -> Fletcher<T, U> {

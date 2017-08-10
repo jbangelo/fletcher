@@ -1,9 +1,9 @@
 use generic_fletcher::Fletcher;
-use generic_fletcher::FletcherSum;
+use generic_fletcher::FletcherAccumulator;
 
 pub type Fletcher32 = Fletcher<u32, u16>;
 
-impl FletcherSum<u16> for u32 {
+impl FletcherAccumulator<u16> for u32 {
     fn default_value() -> Self {
         0x0000ffff
     }
