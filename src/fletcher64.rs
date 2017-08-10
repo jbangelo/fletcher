@@ -1,3 +1,6 @@
+//! An implementation of the 64-bit Fletcher checksum. Simply
+//! a specialization of the generic fletcher trait.
+
 use generic_fletcher::Fletcher;
 use generic_fletcher::FletcherAccumulator;
 
