@@ -1,6 +1,6 @@
 [package]
 name = "fletcher"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["Joseph Angelo <b.j.angelo@gmail.com>"]
 description = "An implementation of Fletcher's Checksum algorithm in rust"
 repository = "https://github.com/jbangelo/fletcher"
