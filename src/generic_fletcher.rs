@@ -5,14 +5,13 @@
 //! some basic requirments on the type used for the checksum, all of
 //! which are met by integral types.
 
-use std::ops::Add;
-use std::marker::PhantomData;
-use std::marker::Copy;
+use core::marker::Copy;
+use core::marker::PhantomData;
+use core::ops::Add;
 
 /// Defines the required traits for the accumulator type
 /// used in the algorithm
-pub trait FletcherAccumulator<T>
-    : Add<Self> + From<T> + From<<Self as Add>::Output> + Copy {
+pub trait FletcherAccumulator<T>: Add<Self> + From<T> + From<<Self as Add>::Output> + Copy {
     /// Should return a reasonable default value
     ///
     /// Usual default values have the least significant bits set
