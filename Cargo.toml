@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Joseph Angelo <b.j.angelo@gmail.com>"]
 description = "An implementation of Fletcher's Checksum algorithm in rust"
 repository = "https://github.com/jbangelo/fletcher"
+documentation = "https://docs.rs/fletcher/"
 readme = "README.md"
 keywords = ["fletcher", "checksum"]
 categories = ["algorithms"]
