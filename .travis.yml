@@ -10,7 +10,7 @@ matrix:
     - rust: nightly
 
 install:
-    - cargo install rustfmt
+    - cargo install --force rustfmt
 
 script:
     - cargo build --verbose
