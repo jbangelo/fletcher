@@ -1,8 +1,18 @@
 language: rust
+
 rust:
   - stable
   - beta
   - nightly
+
 matrix:
   allow_failures:
     - rust: nightly
+
+before_script:
+    - rustup component add rustfmt
+
+script:
+    - cargo build --verbose
+    - cargo test --verbose
+    - cargo fmt -- --check
