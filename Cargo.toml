@@ -13,3 +13,6 @@ license = "MIT"
 travis-ci = { repository = "jbangelo/fletcher", branch = "master" }
 
 [dependencies]
+
+[dev-dependencies]
+byteorder = "1.3"

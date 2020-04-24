@@ -23,3 +23,58 @@ impl FletcherAccumulator<u32> for u64 {
         (self & 0xffffffff) + (self >> 32)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::Fletcher64;
+    use byteorder::{ByteOrder, LittleEndian};
+    use std::vec::Vec;
+
+    fn run_test(test_data: &[u32], expected_value: &u64) {
+        let mut fletcher = Fletcher64::new();
+        fletcher.update(test_data);
+        assert_eq!(fletcher.value(), *expected_value);
+    }
+
+    fn convert_bytes(raw_data: &str) -> Vec<u32> {
+        let mut output = Vec::new();
+        output.resize(raw_data.len() / 4, 0);
+        LittleEndian::read_u32_into(raw_data.as_bytes(), &mut output);
+        output
+    }
+
+    #[test]
+    fn ascii_data() {
+        {
+            let data = convert_bytes("abcde\0\0\0");
+            let expected_value = 0xC8C6C527646362C6;
+            run_test(&data, &expected_value);
+        }
+
+        {
+            let data = convert_bytes("abcdef\0\0");
+            let expected_value = 0xC8C72B276463C8C6;
+            run_test(&data, &expected_value);
+        }
+
+        {
+            let data = convert_bytes("abcdefgh");
+            let expected_value = 0x312E2B28CCCAC8C6;
+            run_test(&data, &expected_value);
+        }
+    }
+
+    #[test]
+    fn fletcher64_underflow() {
+        let zeros = vec![0; 200000];
+        let expected_result = 0xffffffffffffffff;
+        run_test(&zeros, &expected_result);
+    }
+
+    #[test]
+    fn fletcher64_overflow() {
+        let zeros = vec![0xffffffff; 200000];
+        let expected_result = 0xffffffffffffffff;
+        run_test(&zeros, &expected_result);
+    }
+}
