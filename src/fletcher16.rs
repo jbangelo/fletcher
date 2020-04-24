@@ -1,10 +1,15 @@
-//! An implementation of the 16-bit Fletcher checksum. Simply
-//! a specialization of the generic fletcher trait.
-
 use generic_fletcher::Fletcher;
 use generic_fletcher::FletcherAccumulator;
 
-/// Aliases the generic fletcher struct for normal use of the 16-bit algorithm
+/// Produces a 16-bit checksum from a stream of 8-bit data.
+///
+/// Example use:
+/// ```
+/// let data: [u8; 6] = [0xC1, 0x77, 0xE9, 0xC0, 0xAB, 0x1E];
+/// let mut checksum = fletcher::Fletcher16::new();
+/// checksum.update(&data);
+/// assert_eq!(checksum.value(), 0x3FAD);
+/// ```
 pub type Fletcher16 = Fletcher<u16, u8>;
 
 impl FletcherAccumulator<u8> for u16 {

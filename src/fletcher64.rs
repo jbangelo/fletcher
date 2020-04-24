@@ -1,9 +1,15 @@
-//! An implementation of the 64-bit Fletcher checksum. Simply
-//! a specialization of the generic fletcher trait.
-
 use generic_fletcher::Fletcher;
 use generic_fletcher::FletcherAccumulator;
 
+/// Produces a 64-bit checksum from a stream of 32-bit data.
+///
+/// Example use:
+/// ```
+/// let data: [u32; 6] = [0xA0F15604, 0x82856B93, 0xC4395038, 0xF3CAC9CB, 0x39B7C44B, 0xEB0F23DA];
+/// let mut checksum = fletcher::Fletcher64::new();
+/// checksum.update(&data);
+/// assert_eq!(checksum.value(), 0x9D0768B50041C3C3);
+/// ```
 pub type Fletcher64 = Fletcher<u64, u32>;
 
 impl FletcherAccumulator<u32> for u64 {
