@@ -1,7 +1,9 @@
 # fletcher
-An implementation of Fletcher's algorithm in Rust
+A dependency free implementation of the Fletcher's checksum algorithm
 
-[![Build Status](https://travis-ci.org/jbangelo/fletcher.svg?branch=master)](https://travis-ci.org/jbangelo/fletcher)
+[![crates.io](https://img.shields.io/crates/v/fletcher.svg)](https://crates.io/crates/fletcher) [![Build Status](https://travis-ci.org/jbangelo/fletcher.svg?branch=master)](https://travis-ci.org/jbangelo/fletcher)
+
+[Documentation](https://docs.rs/fletcher/)
 
 [Fletcher's Checksum](https://en.wikipedia.org/wiki/Fletcher%27s_checksum) is a
 checksum algorithm that was developed to provide nearly the same error checking
@@ -23,3 +25,10 @@ from the fact that the algorithm uses one's complement math.
 
 Fletcher's checksum isn't quite as good at detecting bit errors in data as a CRC
 with a well choosen polynomial.
+
+## Installation
+Simply add it to the dependency list in your Cargo.toml
+```toml
+[dependencies]
+fletcher = "0.1"
+```

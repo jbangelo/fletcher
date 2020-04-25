@@ -3,7 +3,7 @@ use generic_fletcher::FletcherAccumulator;
 
 /// Produces a 32-bit checksum from a stream of 16-bit data.
 ///
-/// Example use:
+/// # Example
 /// ```
 /// let data: [u16; 6] = [0xF02A, 0xCB0D, 0x5639, 0x6501, 0x2384, 0x75BB];
 /// let mut checksum = fletcher::Fletcher32::new();

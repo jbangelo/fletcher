@@ -2,7 +2,7 @@
 name = "fletcher"
 version = "0.1.0"
 authors = ["Joseph Angelo <b.j.angelo@gmail.com>"]
-description = "An implementation of Fletcher's Checksum algorithm in rust"
+description = "A dependency free implementation of the Fletcher's checksum algorithm"
 repository = "https://github.com/jbangelo/fletcher"
 documentation = "https://docs.rs/fletcher/"
 readme = "README.md"
