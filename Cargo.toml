@@ -16,4 +16,4 @@ travis-ci = { repository = "jbangelo/fletcher", branch = "master" }
 [dependencies]
 
 [dev-dependencies]
-byteorder = "1.3"
+byteorder = "^1.3"
