@@ -7,7 +7,7 @@ repository = "https://github.com/jbangelo/fletcher"
 documentation = "https://docs.rs/fletcher/"
 readme = "README.md"
 keywords = ["fletcher", "checksum"]
-categories = ["algorithms"]
+categories = ["algorithms", "no-std"]
 license = "MIT"
 
 [badges]
