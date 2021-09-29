@@ -89,3 +89,13 @@ where
         T::combine(&self.a, &self.b)
     }
 }
+
+impl<T, U> Default for Fletcher<T, U>
+where
+    T: FletcherAccumulator<U>,
+    U: Copy,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
