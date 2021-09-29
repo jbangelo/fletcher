@@ -25,7 +25,7 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: ${{ matrix.toolchain }}
-        overrides: true
+        override: true
         components: rustfmt, clippy
     - name: Formatting
       run: cargo fmt --verbose -- --check
