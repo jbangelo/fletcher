@@ -5,6 +5,9 @@ on:
     branches: [ master ]
   pull_request:
     branches: [ master ]
+  schedule:
+    branches: [ master ]
+    - cron: '@weekly'
 
 env:
   CARGO_TERM_COLOR: always
@@ -14,11 +17,20 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        toolchain: [ stable, nightly ]
+
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v1
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.toolchain }}
+        overrides: true
+        components: rustfmt, clippy
     - name: Formatting
       run: cargo fmt --verbose -- --check
     - name: Build
       run: cargo build --verbose
-    - name: Run tests
+    - name: Test
       run: cargo test --verbose
