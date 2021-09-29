@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [ main ]
   schedule:
-    - cron: '@weekly'
+    - cron: @weekly
 
 env:
   CARGO_TERM_COLOR: always
