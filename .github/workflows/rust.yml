@@ -29,6 +29,8 @@ jobs:
         components: rustfmt, clippy
     - name: Formatting
       run: cargo fmt --verbose -- --check
+    - name: Clippy
+      run: cargo clippy -- -D warnings
     - name: Build
       run: cargo build --verbose
     - name: Test
