@@ -49,6 +49,27 @@ pub use fletcher16::Fletcher16;
 pub use fletcher32::Fletcher32;
 pub use fletcher64::Fletcher64;
 
+/// Get the 16-bit checksum in one shot
+pub fn fletcher16(data: &[u8]) -> u16 {
+    let mut checksum = Fletcher16::new();
+    checksum.update(data);
+    checksum.value()
+}
+
+/// Get the 32-bit checksum in one shot
+pub fn fletcher32(data: &[u16]) -> u32 {
+    let mut checksum = Fletcher32::new();
+    checksum.update(data);
+    checksum.value()
+}
+
+/// Get the 64-bit checksum in one shot
+pub fn fletcher64(data: &[u32]) -> u64 {
+    let mut checksum = Fletcher64::new();
+    checksum.update(data);
+    checksum.value()
+}
+
 #[cfg(test)]
 #[macro_use]
 extern crate std;
