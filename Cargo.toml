@@ -10,9 +10,6 @@ keywords = ["fletcher", "checksum"]
 categories = ["algorithms", "no-std"]
 license = "MIT"
 
-[badges]
-travis-ci = { repository = "jbangelo/fletcher", branch = "master" }
-
 [dependencies]
 
 [dev-dependencies]
