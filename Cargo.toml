@@ -1,6 +1,6 @@
 [package]
 name = "fletcher"
-version = "0.2.0"
+version = "0.2.1-alpha.0"
 authors = ["Joseph Angelo <b.j.angelo@gmail.com>"]
 description = "A dependency free implementation of the Fletcher's checksum algorithm"
 repository = "https://github.com/jbangelo/fletcher"
