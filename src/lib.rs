@@ -9,7 +9,7 @@
 //! ### Algorithm Pros
 //! This algorithm is faster to run in software than most CRCs. This is
 //! because the CRC algorithm was originally designed to be simple to implement
-//! in hardware, but not neccesarily in software. The Fletcher Checksum was
+//! in hardware, but not necessarily in software. The Fletcher Checksum was
 //! designed specifically to be suited for implementation in software.
 //!
 //! ### Algorithm Cons
@@ -19,22 +19,32 @@
 //! comes from the fact that the algorithm uses one's complement math.
 //!
 //! Fletcher's checksum isn't quite as good at detecting bit errors in data as
-//! a CRC with a well choosen polynomial.
+//! a CRC with a well chosen polynomial.
 //!
 //! # How To Use
-//! The checksum objects take in slices of data to process. There is no minimum
-//! length required of the slices, all of the provided data will be processed
-//! to completion. The type of the input data is dictated by the size of the
-//! checksum value. i.e. a 64-bit checksum operates on 32-bit wide values.
+//! If you have an entire block of data you want to get the checksum of you can
+//! use the calc functions ([`calc_fletcher16`], [`calc_fletcher32`], [`calc_fletcher64`])
+//! to get the checksum in a single function call.
+//!
+//! If you are getting the data in chunks you can make a [`Fletcher`] object
+//! ([`Fletcher16`], [`Fletcher32`], [`Fletcher64`]) to  manage the intermediate
+//! state between chunks of data. The checksum objects take in slices of data to
+//! process. There is no minimum length required of the slices, all of the provided
+//! data will be processed to completion. The type of the input data is dictated by
+//! the size of the checksum value. i.e. a 64-bit checksum operates on 32-bit wide
+//! values.
 //!
 //! The checksum object can be queried for it's current checksum value as any
-//! time with the `value()` function.
+//! time with the [`Fletcher::value()`] function.
 //!
 //! # Example
 //! ```
 //! let data: [u8; 6] = [0xC1, 0x77, 0xE9, 0xC0, 0xAB, 0x1E];
+//! assert_eq!(fletcher::calc_fletcher16(&data), 0x3FAD);
+//! // Or if you want to work on smaller chunks of data
 //! let mut checksum = fletcher::Fletcher16::new();
-//! checksum.update(&data);
+//! checksum.update(&data[0..3]);
+//! checksum.update(&data[3..]);
 //! assert_eq!(checksum.value(), 0x3FAD);
 //! ```
 
@@ -47,93 +57,153 @@ extern crate std;
 #[cfg(test)]
 extern crate byteorder;
 
-use core::{marker::{Copy, PhantomData}, ops::Add};
+use core::{
+    convert::From,
+    ops::{Add, AddAssign, BitAnd, BitOr, Shl, Shr},
+};
 
-/// Defines the required traits for the accumulator type
-/// used in the algorithm
-pub trait FletcherAccumulator<T>: Add<Self> + From<T> + From<<Self as Add>::Output> + Copy {
-    /// Should return a reasonable default value
-    ///
-    /// Usual default values have the least significant bits set
-    /// and the most significant bits cleared, i.e. 0x00ff
-    fn default_value() -> Self;
-    /// Should return the maximum number of words to sum before reducing
-    ///
-    /// This value should be the maximum summations that can happen before
-    /// either accumulator overflows. This can be determined by
-    /// putting the maximum word value into the algorithm and counting
-    /// the number of words can be added before an overflow occurs.
-    fn max_chunk_size() -> usize;
-    /// Combines the two accumulator values into a single value
-    ///
-    /// This function can assume that the accumulators have already
-    /// been fully reduced. This usually involves simply shifting
-    /// the upper accumulator value into the MSB
-    fn combine(lower: &Self, upper: &Self) -> Self;
-    /// Reduces the accumulator value
-    ///
-    /// This function needs to reduce the accumulator value in a manner
-    /// that rounds the value according to one's compliment math. This
-    /// is usually accomplished with masking and shifting
-    fn reduce(self) -> Self;
+/// Base set of values and
+pub trait FletcherAccumulator:
+    Sized
+    + Copy
+    + Default
+    + From<Self::InputType>
+    + Add
+    + From<<Self as Add>::Output>
+    + AddAssign
+    + BitAnd
+    + From<<Self as BitAnd>::Output>
+    + BitOr
+    + From<<Self as BitOr>::Output>
+    + Shl<u16>
+    + From<<Self as Shl<u16>>::Output>
+    + Shr<u16>
+    + From<<Self as Shr<u16>>::Output>
+{
+    type InputType: Copy;
+
+    /// The maximum summations that can happen before accumulator
+    /// overflows. This can be determined by putting the maximum
+    /// word value into the algorithm and counting the number of
+    /// words can be added before an overflow occurs.
+    const MAX_CHUNK_SIZE: usize;
+
+    /// Bit masking pattern to use in the reduce step. This should
+    /// mask out the least significant half of the value, i.e. `0x00ff` for
+    /// 16 bit values
+    const BIT_MASK: Self;
+
+    /// The number of bit spaces needed to shift the most significant half
+    /// of the value into the least significant half of the value. This is
+    /// typically half the bit width of the type, i.e. 8 for 16 bit values
+    const SHIFT_AMOUNT: u16;
 }
 
-/// A generic type for holding intermediate checksum values
-pub struct Fletcher<T, U> {
+impl FletcherAccumulator for u16 {
+    type InputType = u8;
+    const BIT_MASK: Self = 0x00ff;
+    const MAX_CHUNK_SIZE: usize = 21;
+    const SHIFT_AMOUNT: u16 = 8;
+}
+
+impl FletcherAccumulator for u32 {
+    type InputType = u16;
+    const BIT_MASK: Self = 0x0000ffff;
+    const MAX_CHUNK_SIZE: usize = 360;
+    const SHIFT_AMOUNT: u16 = 16;
+}
+
+impl FletcherAccumulator for u64 {
+    type InputType = u32;
+    const BIT_MASK: Self = 0x00000000ffffffff;
+    const MAX_CHUNK_SIZE: usize = 92680;
+    const SHIFT_AMOUNT: u16 = 32;
+}
+
+/// Type to hold the state for calculating a fletcher checksum.
+///
+/// This is useful if you want to calculate the checksum over several small
+/// chunks of data. If you have an entire block of data the functions
+/// [`calc_fletcher16`], [`calc_fletcher32`], [`calc_fletcher64`] simplify
+/// the process.
+pub struct Fletcher<T>
+where
+    T: FletcherAccumulator,
+{
     a: T,
     b: T,
-    phantom: PhantomData<U>,
 }
 
-impl<T, U> Fletcher<T, U>
-    where
-        T: FletcherAccumulator<U>,
-        U: Copy,
+impl<T> Fletcher<T>
+where
+    T: FletcherAccumulator,
 {
-    pub fn new() -> Fletcher<T, U> {
+    /// Construct a new checksum object using the default initial value
+    pub fn new() -> Fletcher<T> {
         Fletcher {
-            a: T::default_value(),
-            b: T::default_value(),
-            phantom: PhantomData,
+            a: T::default(),
+            b: T::default(),
         }
     }
 
-    /// The core fletcher checksum algorithm
-    ///
-    /// The input data is processed in chunks which reduces the
-    /// number of calls to `reduce()`. The size of the chunks depends
-    /// on the accumulator size and data size.
-    pub fn update(&mut self, data: &[U]) {
-        let max_chunk_size = T::max_chunk_size();
+    /// Construct a new checksum object with a specific set of initial values
+    pub fn with_initial_values(
+        a: <T as FletcherAccumulator>::InputType,
+        b: <T as FletcherAccumulator>::InputType,
+    ) -> Fletcher<T> {
+        Fletcher {
+            a: a.into(),
+            b: b.into(),
+        }
+    }
 
-        for chunk in data.chunks(max_chunk_size) {
+    /// Updates the checksum with the given input data
+    pub fn update(&mut self, data: &[<T as FletcherAccumulator>::InputType]) {
+        for chunk in data.chunks(<T as FletcherAccumulator>::MAX_CHUNK_SIZE) {
             let mut intermediate_a = self.a;
             let mut intermediate_b = self.b;
 
-            for byte in chunk {
-                intermediate_a = T::from(intermediate_a + T::from(*byte));
-                intermediate_b = T::from(intermediate_b + intermediate_a);
+            for element in chunk {
+                intermediate_a += (*element).into();
+                intermediate_b += intermediate_a;
             }
 
-            self.a = intermediate_a.reduce();
-            self.b = intermediate_b.reduce();
+            self.a = Self::reduce(intermediate_a);
+            self.b = Self::reduce(intermediate_b);
         }
 
         // One last reduction must be done since we  process in chunks
-        self.a = self.a.reduce();
-        self.b = self.b.reduce();
+        self.a = Self::reduce(self.a);
+        self.b = Self::reduce(self.b);
     }
 
-    /// Returns the current checksum value of the `Fletcher` object
+    /// Returns the current checksum value
     pub fn value(&self) -> T {
-        T::combine(&self.a, &self.b)
+        Self::combine(self.a, self.b)
+    }
+
+    /// Combines the two accumulator values into a single value
+    ///
+    /// This function assumes that the accumulators have already
+    /// been fully reduced.
+    fn combine(lower: T, upper: T) -> T {
+        (lower | (upper << T::SHIFT_AMOUNT).into()).into()
+    }
+
+    /// Reduces the accumulator value
+    ///
+    /// This function needs to reduce the accumulator value in a manner
+    /// that rounds the value according to one's compliment math.
+    fn reduce(value: T) -> T {
+        let lhs: T = (value & T::BIT_MASK).into();
+        let rhs: T = (value >> T::SHIFT_AMOUNT).into();
+        (lhs + rhs).into()
     }
 }
 
-impl<T, U> Default for Fletcher<T, U>
-    where
-        T: FletcherAccumulator<U>,
-        U: Copy,
+impl<T> Default for Fletcher<T>
+where
+    T: FletcherAccumulator,
 {
     fn default() -> Self {
         Self::new()
@@ -149,25 +219,7 @@ impl<T, U> Default for Fletcher<T, U>
 /// checksum.update(&data);
 /// assert_eq!(checksum.value(), 0x3FAD);
 /// ```
-pub type Fletcher16 = Fletcher<u16, u8>;
-
-impl FletcherAccumulator<u8> for u16 {
-    fn default_value() -> Self {
-        0x00ff
-    }
-
-    fn max_chunk_size() -> usize {
-        21
-    }
-
-    fn combine(lower: &Self, upper: &Self) -> Self {
-        lower | (upper << 8)
-    }
-
-    fn reduce(self) -> Self {
-        (self & 0xff) + (self >> 8)
-    }
-}
+pub type Fletcher16 = Fletcher<u16>;
 
 /// Produces a 32-bit checksum from a stream of 16-bit data.
 ///
@@ -178,25 +230,7 @@ impl FletcherAccumulator<u8> for u16 {
 /// checksum.update(&data);
 /// assert_eq!(checksum.value(), 0xDCF30FB3);
 /// ```
-pub type Fletcher32 = Fletcher<u32, u16>;
-
-impl FletcherAccumulator<u16> for u32 {
-    fn default_value() -> Self {
-        0x0000ffff
-    }
-
-    fn max_chunk_size() -> usize {
-        360
-    }
-
-    fn combine(lower: &Self, upper: &Self) -> Self {
-        lower | (upper << 16)
-    }
-
-    fn reduce(self) -> Self {
-        (self & 0xffff) + (self >> 16)
-    }
-}
+pub type Fletcher32 = Fletcher<u32>;
 
 /// Produces a 64-bit checksum from a stream of 32-bit data.
 ///
@@ -207,42 +241,24 @@ impl FletcherAccumulator<u16> for u32 {
 /// checksum.update(&data);
 /// assert_eq!(checksum.value(), 0x9D0768B50041C3C3);
 /// ```
-pub type Fletcher64 = Fletcher<u64, u32>;
-
-impl FletcherAccumulator<u32> for u64 {
-    fn default_value() -> Self {
-        0x00000000ffffffff
-    }
-
-    fn max_chunk_size() -> usize {
-        92680
-    }
-
-    fn combine(lower: &Self, upper: &Self) -> Self {
-        lower | (upper << 32)
-    }
-
-    fn reduce(self) -> Self {
-        (self & 0xffffffff) + (self >> 32)
-    }
-}
+pub type Fletcher64 = Fletcher<u64>;
 
 /// Get the 16-bit checksum in one shot
-pub fn fletcher16(data: &[u8]) -> u16 {
+pub fn calc_fletcher16(data: &[u8]) -> u16 {
     let mut checksum = Fletcher16::new();
     checksum.update(data);
     checksum.value()
 }
 
 /// Get the 32-bit checksum in one shot
-pub fn fletcher32(data: &[u16]) -> u32 {
+pub fn calc_fletcher32(data: &[u16]) -> u32 {
     let mut checksum = Fletcher32::new();
     checksum.update(data);
     checksum.value()
 }
 
 /// Get the 64-bit checksum in one shot
-pub fn fletcher64(data: &[u32]) -> u64 {
+pub fn calc_fletcher64(data: &[u32]) -> u64 {
     let mut checksum = Fletcher64::new();
     checksum.update(data);
     checksum.value()
@@ -250,16 +266,15 @@ pub fn fletcher64(data: &[u32]) -> u64 {
 
 #[cfg(test)]
 mod test {
-    use super::{Fletcher, FletcherAccumulator};
+    use super::{Fletcher, Fletcher16, Fletcher32, Fletcher64, FletcherAccumulator};
     use byteorder::{ByteOrder, LittleEndian};
     use std::vec::Vec;
 
-    fn run_test<T, U>(test_data: &[U], expected_value: &T)
+    fn run_test<T>(test_data: &[<T as FletcherAccumulator>::InputType], expected_value: &T)
     where
-        T: FletcherAccumulator<U> + core::cmp::Eq + core::fmt::Debug,
-        U: Copy
+        T: FletcherAccumulator + core::cmp::Eq + core::fmt::Debug,
     {
-        let mut fletcher = Fletcher::<T, U>::new();
+        let mut fletcher = Fletcher::<T>::new();
         fletcher.update(test_data);
         assert_eq!(fletcher.value(), *expected_value);
     }
@@ -295,7 +310,7 @@ mod test {
     #[test]
     fn fletcher16_underflow() {
         let zeros = vec![0; 200000];
-        let expected_result = 0xffffu16;
+        let expected_result = 0u16;
         run_test(&zeros, &expected_result);
     }
 
@@ -304,6 +319,27 @@ mod test {
         let ones = vec![0xff; 200000];
         let expected_result = 0xffffu16;
         run_test(&ones, &expected_result);
+    }
+
+    #[test]
+    fn fletcher16_initial_value() {
+        let data = vec![0xC1, 0x77, 0xE9, 0xC0, 0xAB, 0x1E];
+
+        let mut defaulted_checksum = Fletcher16::new();
+        defaulted_checksum.update(&data);
+
+        let intermediate_value = defaulted_checksum.value();
+        let mut initial_value_checksum = Fletcher16::with_initial_values(
+            (intermediate_value & 0xFF) as u8,
+            (intermediate_value >> 8) as u8,
+        );
+
+        assert_eq!(defaulted_checksum.value(), initial_value_checksum.value());
+
+        defaulted_checksum.update(&data);
+        initial_value_checksum.update(&data);
+
+        assert_eq!(defaulted_checksum.value(), initial_value_checksum.value());
     }
 
     fn convert_bytes_u16(raw_data: &str) -> Vec<u16> {
@@ -344,7 +380,7 @@ mod test {
     #[test]
     fn fletcher32_underflow() {
         let zeros = vec![0; 200000];
-        let expected_result = 0xffffffffu32;
+        let expected_result = 0u32;
         run_test(&zeros, &expected_result);
     }
 
@@ -353,6 +389,27 @@ mod test {
         let ones = vec![0xffff; 200000];
         let expected_result = 0xffffffffu32;
         run_test(&ones, &expected_result);
+    }
+
+    #[test]
+    fn fletcher32_initial_value() {
+        let data = vec![0xC1, 0x77, 0xE9, 0xC0, 0xAB, 0x1E];
+
+        let mut defaulted_checksum = Fletcher32::new();
+        defaulted_checksum.update(&data);
+
+        let intermediate_value = defaulted_checksum.value();
+        let mut initial_value_checksum = Fletcher32::with_initial_values(
+            (intermediate_value & 0xFFFF) as u16,
+            (intermediate_value >> 16) as u16,
+        );
+
+        assert_eq!(defaulted_checksum.value(), initial_value_checksum.value());
+
+        defaulted_checksum.update(&data);
+        initial_value_checksum.update(&data);
+
+        assert_eq!(defaulted_checksum.value(), initial_value_checksum.value());
     }
 
     fn convert_bytes_u32(raw_data: &str) -> Vec<u32> {
@@ -386,7 +443,7 @@ mod test {
     #[test]
     fn fletcher64_underflow() {
         let zeros = vec![0; 200000];
-        let expected_result = 0xffffffffffffffffu64;
+        let expected_result = 0u64;
         run_test(&zeros, &expected_result);
     }
 
@@ -395,5 +452,26 @@ mod test {
         let zeros = vec![0xffffffff; 200000];
         let expected_result = 0xffffffffffffffffu64;
         run_test(&zeros, &expected_result);
+    }
+
+    #[test]
+    fn fletcher64_initial_value() {
+        let data = vec![0xC1, 0x77, 0xE9, 0xC0, 0xAB, 0x1E];
+
+        let mut defaulted_checksum = Fletcher64::new();
+        defaulted_checksum.update(&data);
+
+        let intermediate_value = defaulted_checksum.value();
+        let mut initial_value_checksum = Fletcher64::with_initial_values(
+            (intermediate_value & 0xFFFFFFFF) as u32,
+            (intermediate_value >> 32) as u32,
+        );
+
+        assert_eq!(defaulted_checksum.value(), initial_value_checksum.value());
+
+        defaulted_checksum.update(&data);
+        initial_value_checksum.update(&data);
+
+        assert_eq!(defaulted_checksum.value(), initial_value_checksum.value());
     }
 }
