@@ -1,7 +1,7 @@
 # fletcher
 A dependency free implementation of the Fletcher's checksum algorithm
 
-[![crates.io](https://img.shields.io/crates/v/fletcher.svg)](https://crates.io/crates/fletcher) ![example workflow](https://github.com/jbangelo/fletcher/actions/workflows/rust.yml/badge.svg)
+[![crates.io](https://img.shields.io/crates/v/fletcher.svg)](https://crates.io/crates/fletcher) ![example workflow](https://github.com/jbangelo/fletcher/actions/workflows/build.yml/badge.svg)
 
 [Fletcher's Checksum](https://en.wikipedia.org/wiki/Fletcher%27s_checksum) is a
 checksum algorithm that was developed to provide nearly the same error checking
