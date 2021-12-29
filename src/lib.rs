@@ -9,9 +9,9 @@ extern crate std;
 extern crate byteorder;
 
 use core::{
+    cmp::PartialEq,
     convert::From,
     ops::{Add, AddAssign, BitAnd, BitOr, Shl, Shr},
-    cmp::PartialEq
 };
 
 /// Base set of values and
