@@ -11,6 +11,7 @@ extern crate byteorder;
 use core::{
     convert::From,
     ops::{Add, AddAssign, BitAnd, BitOr, Shl, Shr},
+    cmp::PartialEq
 };
 
 /// Base set of values and
@@ -30,6 +31,7 @@ pub trait FletcherAccumulator:
     + From<<Self as Shl<u16>>::Output>
     + Shr<u16>
     + From<<Self as Shr<u16>>::Output>
+    + PartialEq
 {
     type InputType: Copy;
 
@@ -148,7 +150,12 @@ where
     fn reduce(value: T) -> T {
         let lhs: T = (value & T::BIT_MASK).into();
         let rhs: T = (value >> T::SHIFT_AMOUNT).into();
-        (lhs + rhs).into()
+        let result: T = (lhs + rhs).into();
+        if result == T::BIT_MASK {
+            T::default()
+        } else {
+            result
+        }
     }
 }
 
@@ -268,7 +275,7 @@ mod test {
     #[test]
     fn fletcher16_overflow() {
         let ones = vec![0xff; 200000];
-        let expected_result = 0xffffu16;
+        let expected_result = 0x0000u16;
         run_test(&ones, &expected_result);
     }
 
@@ -338,7 +345,7 @@ mod test {
     #[test]
     fn fletcher32_overflow() {
         let ones = vec![0xffff; 200000];
-        let expected_result = 0xffffffffu32;
+        let expected_result = 0x00000000u32;
         run_test(&ones, &expected_result);
     }
 
@@ -401,7 +408,7 @@ mod test {
     #[test]
     fn fletcher64_overflow() {
         let zeros = vec![0xffffffff; 200000];
-        let expected_result = 0xffffffffffffffffu64;
+        let expected_result = 0x0000000000000000u64;
         run_test(&zeros, &expected_result);
     }
 
@@ -424,5 +431,22 @@ mod test {
         initial_value_checksum.update(&data);
 
         assert_eq!(defaulted_checksum.value(), initial_value_checksum.value());
+    }
+
+    #[test]
+    fn issue_8() {
+        let data = [0x06, 0x83, 0x0d, 0x00, 0xc5, 0x18, 0xe5, 0x08, 0xef, 0x11];
+        let csum = super::calc_fletcher16(&data);
+
+        assert_ne!(csum, 0xff63);
+        assert_eq!(csum, 0x0063);
+    }
+
+    #[test]
+    fn wiki_example() {
+        let data = [0x01, 0x02, 0xF8, 0x04];
+        let csum = super::calc_fletcher16(&data);
+
+        assert_eq!(csum, 0x0000);
     }
 }
