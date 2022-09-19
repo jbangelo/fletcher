@@ -10,8 +10,9 @@ extern crate byteorder;
 
 use core::{
     cmp::PartialEq,
-    convert::From,
-    ops::{Add, AddAssign, BitAnd, BitOr, Shl, Shr},
+    convert::{From, TryInto},
+    fmt::Debug,
+    ops::{Add, AddAssign, BitAnd, BitOr, Shl, Shr, Sub},
 };
 
 /// Base set of values and
@@ -22,11 +23,13 @@ pub trait FletcherAccumulator:
     + From<Self::InputType>
     + Add<Output = Self>
     + AddAssign
+    + Sub<Output = Self>
     + BitAnd<Output = Self>
     + BitOr<Output = Self>
     + Shl<u16, Output = Self>
     + Shr<u16, Output = Self>
     + PartialEq
+    + TryInto<Self::InputType>
 {
     type InputType: Copy;
 
@@ -130,6 +133,19 @@ where
         Self::combine(self.a, self.b)
     }
 
+    pub fn check_values(&self) -> [T::InputType; 2]
+    where
+        <T as TryInto<<T as FletcherAccumulator>::InputType>>::Error: Debug,
+    {
+        let checksum_a: T = T::BIT_MASK - Self::reduce(self.a + self.b);
+        let checksumb_b: T = T::BIT_MASK - Self::reduce(self.a + checksum_a);
+
+        [
+            checksum_a.try_into().unwrap(),
+            checksumb_b.try_into().unwrap(),
+        ]
+    }
+
     /// Combines the two accumulator values into a single value
     ///
     /// This function assumes that the accumulators have already
@@ -203,11 +219,27 @@ pub fn calc_fletcher16(data: &[u8]) -> u16 {
     checksum.value()
 }
 
+/// Get the 2 bytes to append to the end of data to cause the
+/// computed checksum to be be `0`
+pub fn checkvalues_fletcher16(data: &[u8]) -> [u8; 2] {
+    let mut checksum = Fletcher16::new();
+    checksum.update(data);
+    checksum.check_values()
+}
+
 /// Get the 32-bit checksum in one shot
 pub fn calc_fletcher32(data: &[u16]) -> u32 {
     let mut checksum = Fletcher32::new();
     checksum.update(data);
     checksum.value()
+}
+
+/// Get the 2 16-bit values to append to the end of data
+/// to cause the computed checksum to be be `0`
+pub fn checkvalues_fletcher32(data: &[u16]) -> [u16; 2] {
+    let mut checksum = Fletcher32::new();
+    checksum.update(data);
+    checksum.check_values()
 }
 
 /// Get the 64-bit checksum in one shot
@@ -217,9 +249,19 @@ pub fn calc_fletcher64(data: &[u32]) -> u64 {
     checksum.value()
 }
 
+/// Get the 2 32-bit values to append to the end of data
+/// to cause the computed checksum to be be `0`
+pub fn checkvalues_fletcher64(data: &[u32]) -> [u32; 2] {
+    let mut checksum = Fletcher64::new();
+    checksum.update(data);
+    checksum.check_values()
+}
+
 #[cfg(test)]
 mod test {
-    use super::{Fletcher, Fletcher16, Fletcher32, Fletcher64, FletcherAccumulator};
+    use super::{
+        checkvalues_fletcher16, Fletcher, Fletcher16, Fletcher32, Fletcher64, FletcherAccumulator,
+    };
     use byteorder::{ByteOrder, LittleEndian};
     use std::vec::Vec;
 
@@ -293,6 +335,22 @@ mod test {
         initial_value_checksum.update(&data);
 
         assert_eq!(defaulted_checksum.value(), initial_value_checksum.value());
+    }
+
+    #[test]
+    fn fletcher16_check_values() {
+        let data = vec![0x01, 0x02];
+        let check_bytes = checkvalues_fletcher16(&data);
+        let expected_check_bytes = [0xF8, 0x04];
+
+        assert_eq!(check_bytes, expected_check_bytes);
+
+        let mut data = vec![0xC1, 0x77, 0xE9, 0xC0, 0xAB, 0x1E];
+        let check_bytes = checkvalues_fletcher16(&data);
+        data.push(check_bytes[0]);
+        data.push(check_bytes[1]);
+        let expected_value = 0u16;
+        run_test(&data, &expected_value);
     }
 
     fn convert_bytes_u16(raw_data: &str) -> Vec<u16> {
