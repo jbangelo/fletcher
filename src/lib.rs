@@ -79,6 +79,7 @@ impl FletcherAccumulator for u64 {
 /// chunks of data. If you have an entire block of data the functions
 /// [`calc_fletcher16`], [`calc_fletcher32`], [`calc_fletcher64`] simplify
 /// the process.
+#[derive(Clone, Copy, Debug)]
 pub struct Fletcher<T>
 where
     T: FletcherAccumulator,
