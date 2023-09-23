@@ -1,4 +1,68 @@
-#![doc = include_str!("../README.md")]
+//! Fletcher's Checksum was developed to provide nearly the same error checking
+//! capability as a CRC but with a faster software implementation. This is not a
+//! cryptographically secure checksum, it's only meant to be used for checking
+//! the integrity of data NOT the authenticity.
+//!
+//! ## Algorithm Pros
+//! This algorithm is faster to run in software than most CRCs. This is because the
+//! CRC algorithm was originally designed to be simple to implement in hardware, but
+//! not neccesarily in software. The Fletcher Checksum was designed specifically to
+//! be suited for implementation in software.
+//!
+//! ## Algorithm Cons
+//! This checksum algorithm does suffer from not being able to distinguish `0xFF`
+//! from `0x00`. Meaning a block of data with all bits set to 1 will have the exact
+//! same the same checksum as a block of data with all bits set to 0. This comes
+//! from the fact that the algorithm uses one's complement math.
+//!
+//! Fletcher's checksum isn't quite as good at detecting bit errors in data as a CRC
+//! with a well chosen polynomial.
+//!
+//! # How To Use
+//! If you have an entire block of data you want to get the checksum of you can
+//! use the calc functions ([`calc_fletcher16`], [`calc_fletcher32`], [`calc_fletcher64`])
+//! to get the checksum in a single function call.
+//!
+//! If you are getting the data in chunks you can make a [`Fletcher`] object
+//! (e.g. [`Fletcher16`], [`Fletcher32`], [`Fletcher64`]) to  manage the intermediate
+//! state between chunks of data. The checksum objects take in slices of data to
+//! process. There is no minimum length required of the slices, all of the provided
+//! data will be processed. The type of the input data is dictated by  the size of the
+//! checksum value. i.e. a 64-bit checksum operates on 32-bit wide values.
+//!
+//! The checksum object can be queried for it's current checksum value at any
+//! time with the [`Fletcher::value()`] function.
+//!
+//! ## Check Values
+//! An alternative way to use the Fletcher checksum is to append a value to the
+//! end of you data stream so that the final checksum produced comes out to zero.
+//! This doesn't implicitly happen when appending the checksum value to the end
+//! of your data, you must derive a specific value from the checksum. This can be
+//! done with the [`Fletcher::check_values()`] function, or the crate level functions
+//! if you have all of the data available ([`checkvalues_fletcher16`],
+//! [`checkvalues_fletcher32`], [`checkvalues_fletcher64`]).
+//!
+//! ## Examples
+//! ```rust
+//! let data: [u8; 6] = [0xC1, 0x77, 0xE9, 0xC0, 0xAB, 0x1E];
+//! assert_eq!(fletcher::calc_fletcher16(&data), 0x3FAD);
+//! // Or if you want to work on smaller chunks of data
+//! let mut checksum = fletcher::Fletcher16::new();
+//! checksum.update(&data[0..3]);
+//! checksum.update(&data[3..]);
+//! assert_eq!(checksum.value(), 0x3FAD);
+//! ```
+//!
+//! Calculating and appending check values:
+//! ```rust
+//! use fletcher::calc_fletcher16;
+//! let mut data = vec![0xC1, 0x77, 0xE9, 0xC0, 0xAB, 0x1E, 0x00, 0x00];
+//! let check_values = fletcher::checkvalues_fletcher16(&data);
+//! data.push(check_values[0]);
+//! data.push(check_values[1]);
+//! assert_eq!(calc_fletcher16(&data), 0);
+//! ```
+
 #![no_std]
 
 #[cfg(test)]
@@ -10,8 +74,9 @@ extern crate byteorder;
 
 use core::{
     cmp::PartialEq,
-    convert::From,
-    ops::{Add, AddAssign, BitAnd, BitOr, Shl, Shr},
+    convert::{From, TryInto},
+    fmt::Debug,
+    ops::{Add, AddAssign, BitAnd, BitOr, Shl, Shr, Sub},
 };
 
 /// Base set of values and
@@ -20,18 +85,15 @@ pub trait FletcherAccumulator:
     + Copy
     + Default
     + From<Self::InputType>
-    + Add
-    + From<<Self as Add>::Output>
+    + Add<Output = Self>
     + AddAssign
-    + BitAnd
-    + From<<Self as BitAnd>::Output>
-    + BitOr
-    + From<<Self as BitOr>::Output>
-    + Shl<u16>
-    + From<<Self as Shl<u16>>::Output>
-    + Shr<u16>
-    + From<<Self as Shr<u16>>::Output>
+    + Sub<Output = Self>
+    + BitAnd<Output = Self>
+    + BitOr<Output = Self>
+    + Shl<u16, Output = Self>
+    + Shr<u16, Output = Self>
     + PartialEq
+    + TryInto<Self::InputType>
 {
     type InputType: Copy;
 
@@ -136,12 +198,25 @@ where
         Self::combine(self.a, self.b)
     }
 
+    pub fn check_values(&self) -> [T::InputType; 2]
+    where
+        <T as TryInto<<T as FletcherAccumulator>::InputType>>::Error: Debug,
+    {
+        let checksum_a: T = T::BIT_MASK - Self::reduce(self.a + self.b);
+        let checksumb_b: T = T::BIT_MASK - Self::reduce(self.a + checksum_a);
+
+        [
+            checksum_a.try_into().unwrap(),
+            checksumb_b.try_into().unwrap(),
+        ]
+    }
+
     /// Combines the two accumulator values into a single value
     ///
     /// This function assumes that the accumulators have already
     /// been fully reduced.
     fn combine(lower: T, upper: T) -> T {
-        (lower | (upper << T::SHIFT_AMOUNT).into()).into()
+        lower | (upper << T::SHIFT_AMOUNT)
     }
 
     /// Reduces the accumulator value
@@ -149,9 +224,9 @@ where
     /// This function needs to reduce the accumulator value in a manner
     /// that rounds the value according to one's compliment math.
     fn reduce(value: T) -> T {
-        let lhs: T = (value & T::BIT_MASK).into();
-        let rhs: T = (value >> T::SHIFT_AMOUNT).into();
-        let result: T = (lhs + rhs).into();
+        let lhs: T = value & T::BIT_MASK;
+        let rhs: T = value >> T::SHIFT_AMOUNT;
+        let result: T = lhs + rhs;
         if result == T::BIT_MASK {
             T::default()
         } else {
@@ -209,11 +284,27 @@ pub fn calc_fletcher16(data: &[u8]) -> u16 {
     checksum.value()
 }
 
+/// Get the 2 bytes to append to the end of data to cause the
+/// computed checksum to be be `0`
+pub fn checkvalues_fletcher16(data: &[u8]) -> [u8; 2] {
+    let mut checksum = Fletcher16::new();
+    checksum.update(data);
+    checksum.check_values()
+}
+
 /// Get the 32-bit checksum in one shot
 pub fn calc_fletcher32(data: &[u16]) -> u32 {
     let mut checksum = Fletcher32::new();
     checksum.update(data);
     checksum.value()
+}
+
+/// Get the 2 16-bit values to append to the end of data
+/// to cause the computed checksum to be be `0`
+pub fn checkvalues_fletcher32(data: &[u16]) -> [u16; 2] {
+    let mut checksum = Fletcher32::new();
+    checksum.update(data);
+    checksum.check_values()
 }
 
 /// Get the 64-bit checksum in one shot
@@ -223,9 +314,19 @@ pub fn calc_fletcher64(data: &[u32]) -> u64 {
     checksum.value()
 }
 
+/// Get the 2 32-bit values to append to the end of data
+/// to cause the computed checksum to be be `0`
+pub fn checkvalues_fletcher64(data: &[u32]) -> [u32; 2] {
+    let mut checksum = Fletcher64::new();
+    checksum.update(data);
+    checksum.check_values()
+}
+
 #[cfg(test)]
 mod test {
-    use super::{Fletcher, Fletcher16, Fletcher32, Fletcher64, FletcherAccumulator};
+    use super::{
+        checkvalues_fletcher16, Fletcher, Fletcher16, Fletcher32, Fletcher64, FletcherAccumulator,
+    };
     use byteorder::{ByteOrder, LittleEndian};
     use std::vec::Vec;
 
@@ -299,6 +400,22 @@ mod test {
         initial_value_checksum.update(&data);
 
         assert_eq!(defaulted_checksum.value(), initial_value_checksum.value());
+    }
+
+    #[test]
+    fn fletcher16_check_values() {
+        let data = vec![0x01, 0x02];
+        let check_bytes = checkvalues_fletcher16(&data);
+        let expected_check_bytes = [0xF8, 0x04];
+
+        assert_eq!(check_bytes, expected_check_bytes);
+
+        let mut data = vec![0xC1, 0x77, 0xE9, 0xC0, 0xAB, 0x1E];
+        let check_bytes = checkvalues_fletcher16(&data);
+        data.push(check_bytes[0]);
+        data.push(check_bytes[1]);
+        let expected_value = 0u16;
+        run_test(&data, &expected_value);
     }
 
     fn convert_bytes_u16(raw_data: &str) -> Vec<u16> {
