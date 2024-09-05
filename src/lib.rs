@@ -14,23 +14,18 @@ use core::{
     ops::{Add, AddAssign, BitAnd, BitOr, Shl, Shr},
 };
 
-/// Base set of values and
+/// Base set of values and operations needed for our implementation
 pub trait FletcherAccumulator:
     Sized
     + Copy
     + Default
     + From<Self::InputType>
-    + Add
-    + From<<Self as Add>::Output>
+    + Add<Output = Self>
     + AddAssign
-    + BitAnd
-    + From<<Self as BitAnd>::Output>
-    + BitOr
-    + From<<Self as BitOr>::Output>
-    + Shl<u16>
-    + From<<Self as Shl<u16>>::Output>
-    + Shr<u16>
-    + From<<Self as Shr<u16>>::Output>
+    + BitAnd<Output = Self>
+    + BitOr<Output = Self>
+    + Shl<u16, Output = Self>
+    + Shr<u16, Output = Self>
     + PartialEq
 {
     type InputType: Copy;
@@ -141,7 +136,7 @@ where
     /// This function assumes that the accumulators have already
     /// been fully reduced.
     fn combine(lower: T, upper: T) -> T {
-        (lower | (upper << T::SHIFT_AMOUNT).into()).into()
+        lower | (upper << T::SHIFT_AMOUNT)
     }
 
     /// Reduces the accumulator value
@@ -149,9 +144,9 @@ where
     /// This function needs to reduce the accumulator value in a manner
     /// that rounds the value according to one's compliment math.
     fn reduce(value: T) -> T {
-        let lhs: T = (value & T::BIT_MASK).into();
-        let rhs: T = (value >> T::SHIFT_AMOUNT).into();
-        let result: T = (lhs + rhs).into();
+        let lhs: T = value & T::BIT_MASK;
+        let rhs: T = value >> T::SHIFT_AMOUNT;
+        let result: T = lhs + rhs;
         if result == T::BIT_MASK {
             T::default()
         } else {
