@@ -1,4 +1,57 @@
-#![doc = include_str!("../README.md")]
+//! # fletcher
+//!
+//! A dependency free implementation of the Fletcher's checksum algorithm
+//!
+//! ## Getting Started
+//!
+//! If you've got all the data you want a checksum of you can use the [`calc_fletcher16()`],
+//! [`calc_fletcher32()`], and [`calc_fletcher64()`] functions to get the checksum values in
+//! a single shot.
+//!
+//! If you are streaming data, or otherwise want to calculate the checksum in chunks you can
+//! use the [`Fletcher16`], [`Fletcher32`], and [`Fletcher64`] objects to manage the
+//! intermediate state. You can feed in data with the [`Fletcher::update()`] function and
+//! get the current checksum value at anytime with the [`Fletcher::value()`] function. These
+//! objects also allow you to initialize them with specific values using the
+//! [`Fletcher::with_initial_values()`] constructor function.
+//!
+//! ## Check Values
+//!
+//! The typical use case for checksums is to generate the value and store it alongside the data,
+//! then when you want to validate the integrity of the data you re-generate the checksum and
+//! compare it against the stored value. An alternative method is to append special values to the
+//! data to ensure that the resultant checksum value ends up being zero. This method does not
+//! provide any more or less ability to detect corruption of the data and it doesn't save any space
+//! since the check values that are added are the same size as the checksum value that would need
+//! to be stored.
+//!
+//! The [`checkvalues_fletcher16()`], [`checkvalues_fletcher32()`], and
+//! [`checkvalues_fletcher64()`] functions provide a one-shot means of generating the needed check
+//! vlaues to force the checksum to be zero. Alternatively the [`Fletcher::check_values()`]
+//! function is available if you are using the [`Fletcher`] objects.
+//!
+//! ## Examples
+//!
+//! Generating checksums:
+//! ```rust
+//! let data: [u8; 6] = [0xC1, 0x77, 0xE9, 0xC0, 0xAB, 0x1E];
+//! assert_eq!(fletcher::calc_fletcher16(&data), 0x3FAD);
+//! // Or if you want to work on smaller chunks of data
+//! let mut checksum = fletcher::Fletcher16::new();
+//! checksum.update(&data[0..3]);
+//! checksum.update(&data[3..]);
+//! assert_eq!(checksum.value(), 0x3FAD);
+//! ```
+//!
+//! Getting check values to force a zero checksum:
+//! ```rust
+//! let mut data = vec![0xC1, 0x77, 0xE9, 0xC0, 0xAB, 0x1E];
+//! let checkvalues = fletcher::checkvalues_fletcher16(&data);
+//! data.push(checkvalues[0]);
+//! data.push(checkvalues[1]);
+//! assert_eq!(fletcher::calc_fletcher16(&data), 0);
+//! ```
+
 #![no_std]
 
 #[cfg(test)]
