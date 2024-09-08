@@ -8,10 +8,15 @@ extern crate std;
 #[cfg(test)]
 extern crate byteorder;
 
+#[cfg(test)]
+#[macro_use]
+extern crate quickcheck;
+
 use core::{
     cmp::PartialEq,
-    convert::From,
-    ops::{Add, AddAssign, BitAnd, BitOr, Shl, Shr},
+    convert::{From, TryInto},
+    fmt::Debug,
+    ops::{Add, AddAssign, BitAnd, BitOr, Shl, Shr, Sub},
 };
 
 /// Base set of values and operations needed for our implementation
@@ -22,11 +27,13 @@ pub trait FletcherAccumulator:
     + From<Self::InputType>
     + Add<Output = Self>
     + AddAssign
+    + Sub<Output = Self>
     + BitAnd<Output = Self>
     + BitOr<Output = Self>
     + Shl<u16, Output = Self>
     + Shr<u16, Output = Self>
     + PartialEq
+    + TryInto<Self::InputType>
 {
     type InputType: Copy;
 
@@ -131,6 +138,19 @@ where
         Self::combine(self.a, self.b)
     }
 
+    pub fn check_values(&self) -> [T::InputType; 2]
+    where
+        <T as TryInto<<T as FletcherAccumulator>::InputType>>::Error: Debug,
+    {
+        let checksum_a: T = T::BIT_MASK - Self::reduce(self.a + self.b);
+        let checksumb_b: T = T::BIT_MASK - Self::reduce(self.a + checksum_a);
+
+        [
+            checksum_a.try_into().unwrap(),
+            checksumb_b.try_into().unwrap(),
+        ]
+    }
+
     /// Combines the two accumulator values into a single value
     ///
     /// This function assumes that the accumulators have already
@@ -204,11 +224,27 @@ pub fn calc_fletcher16(data: &[u8]) -> u16 {
     checksum.value()
 }
 
+/// Get the 2 bytes to append to the end of data to cause the
+/// computed checksum to be be `0`
+pub fn checkvalues_fletcher16(data: &[u8]) -> [u8; 2] {
+    let mut checksum = Fletcher16::new();
+    checksum.update(data);
+    checksum.check_values()
+}
+
 /// Get the 32-bit checksum in one shot
 pub fn calc_fletcher32(data: &[u16]) -> u32 {
     let mut checksum = Fletcher32::new();
     checksum.update(data);
     checksum.value()
+}
+
+/// Get the 2 16-bit values to append to the end of data
+/// to cause the computed checksum to be be `0`
+pub fn checkvalues_fletcher32(data: &[u16]) -> [u16; 2] {
+    let mut checksum = Fletcher32::new();
+    checksum.update(data);
+    checksum.check_values()
 }
 
 /// Get the 64-bit checksum in one shot
@@ -218,9 +254,17 @@ pub fn calc_fletcher64(data: &[u32]) -> u64 {
     checksum.value()
 }
 
+/// Get the 2 32-bit values to append to the end of data
+/// to cause the computed checksum to be be `0`
+pub fn checkvalues_fletcher64(data: &[u32]) -> [u32; 2] {
+    let mut checksum = Fletcher64::new();
+    checksum.update(data);
+    checksum.check_values()
+}
+
 #[cfg(test)]
 mod test {
-    use super::{Fletcher, Fletcher16, Fletcher32, Fletcher64, FletcherAccumulator};
+    use super::*;
     use byteorder::{ByteOrder, LittleEndian};
     use std::vec::Vec;
 
@@ -296,6 +340,17 @@ mod test {
         assert_eq!(defaulted_checksum.value(), initial_value_checksum.value());
     }
 
+    quickcheck! {
+        fn fletcher16_check_values(data: Vec<u8>) -> bool {
+            let check_bytes = checkvalues_fletcher16(&data);
+            let mut data = data.clone();
+            data.push(check_bytes[0]);
+            data.push(check_bytes[1]);
+
+            calc_fletcher16(&data) == 0
+        }
+    }
+
     fn convert_bytes_u16(raw_data: &str) -> Vec<u16> {
         let mut output = Vec::new();
         output.resize(raw_data.len() / 2, 0);
@@ -366,6 +421,17 @@ mod test {
         assert_eq!(defaulted_checksum.value(), initial_value_checksum.value());
     }
 
+    quickcheck! {
+        fn fletcher32_check_values(data: Vec<u16>) -> bool {
+            let check_words = checkvalues_fletcher32(&data);
+            let mut data = data.clone();
+            data.push(check_words[0]);
+            data.push(check_words[1]);
+
+            calc_fletcher32(&data) == 0
+        }
+    }
+
     fn convert_bytes_u32(raw_data: &str) -> Vec<u32> {
         let mut output = Vec::new();
         output.resize(raw_data.len() / 4, 0);
@@ -427,6 +493,17 @@ mod test {
         initial_value_checksum.update(&data);
 
         assert_eq!(defaulted_checksum.value(), initial_value_checksum.value());
+    }
+
+    quickcheck! {
+        fn fletcher64_check_values(data: Vec<u32>) -> bool {
+            let check_words = checkvalues_fletcher64(&data);
+            let mut data = data.clone();
+            data.push(check_words[0]);
+            data.push(check_words[1]);
+
+            calc_fletcher64(&data) == 0
+        }
     }
 
     #[test]
