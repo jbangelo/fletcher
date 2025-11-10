@@ -69,8 +69,10 @@ use core::{
     cmp::PartialEq,
     convert::{From, TryInto},
     fmt::Debug,
-    ops::{Add, AddAssign, BitAnd, BitOr, Shl, Shr, Sub},
+    ops::{Add, BitAnd, BitOr, Shl, Shr, Sub},
 };
+#[cfg(feature = "u48checksum")]
+use ux::{u24, u48};
 
 /// Base set of values and operations needed for our implementation
 pub trait FletcherAccumulator:
@@ -79,12 +81,11 @@ pub trait FletcherAccumulator:
     + Default
     + From<Self::InputType>
     + Add<Output = Self>
-    + AddAssign
     + Sub<Output = Self>
     + BitAnd<Output = Self>
     + BitOr<Output = Self>
-    + Shl<u16, Output = Self>
-    + Shr<u16, Output = Self>
+    + Shl<usize, Output = Self>
+    + Shr<usize, Output = Self>
     + PartialEq
     + TryInto<Self::InputType>
 {
@@ -104,28 +105,37 @@ pub trait FletcherAccumulator:
     /// The number of bit spaces needed to shift the most significant half
     /// of the value into the least significant half of the value. This is
     /// typically half the bit width of the type, i.e. 8 for 16 bit values
-    const SHIFT_AMOUNT: u16;
+    const SHIFT_AMOUNT: usize;
 }
 
 impl FletcherAccumulator for u16 {
     type InputType = u8;
     const BIT_MASK: Self = 0x00ff;
     const MAX_CHUNK_SIZE: usize = 21;
-    const SHIFT_AMOUNT: u16 = 8;
+    const SHIFT_AMOUNT: usize = 8;
 }
 
 impl FletcherAccumulator for u32 {
     type InputType = u16;
     const BIT_MASK: Self = 0x0000ffff;
     const MAX_CHUNK_SIZE: usize = 360;
-    const SHIFT_AMOUNT: u16 = 16;
+    const SHIFT_AMOUNT: usize = 16;
 }
 
 impl FletcherAccumulator for u64 {
     type InputType = u32;
     const BIT_MASK: Self = 0x00000000ffffffff;
     const MAX_CHUNK_SIZE: usize = 92680;
-    const SHIFT_AMOUNT: u16 = 32;
+    const SHIFT_AMOUNT: usize = 32;
+}
+
+#[cfg(feature = "u48checksum")]
+impl FletcherAccumulator for u48 {
+    type InputType = u24;
+    // 24 bits only
+    const BIT_MASK: Self = u48::new(0xff_ffff);
+    const MAX_CHUNK_SIZE: usize = 32;
+    const SHIFT_AMOUNT: usize = 24;
 }
 
 /// Type to hold the state for calculating a fletcher checksum.
@@ -173,8 +183,8 @@ where
             let mut intermediate_b = self.b;
 
             for element in chunk {
-                intermediate_a += (*element).into();
-                intermediate_b += intermediate_a;
+                intermediate_a = intermediate_a + (*element).into();
+                intermediate_b = intermediate_b + intermediate_a;
             }
 
             self.a = Self::reduce(intermediate_a);
@@ -277,6 +287,16 @@ pub fn calc_fletcher16(data: &[u8]) -> u16 {
     checksum.value()
 }
 
+#[cfg(feature = "u48checksum")]
+pub type Fletcher48 = Fletcher<u48>;
+
+#[cfg(feature = "u48checksum")]
+pub fn calc_fletcher48(data: &[u24]) -> u48 {
+    let mut checksum = Fletcher48::new();
+    checksum.update(data);
+    checksum.value()
+}
+
 /// Get the 2 bytes to append to the end of data to cause the
 /// computed checksum to be be `0`
 pub fn checkvalues_fletcher16(data: &[u8]) -> [u8; 2] {
@@ -320,6 +340,7 @@ mod test {
     use super::*;
     use byteorder::{ByteOrder, LittleEndian};
     use std::vec::Vec;
+    use ux::u24;
 
     fn run_test<T>(test_data: &[<T as FletcherAccumulator>::InputType], expected_value: &T)
     where
@@ -328,6 +349,61 @@ mod test {
         let mut fletcher = Fletcher::<T>::new();
         fletcher.update(test_data);
         assert_eq!(fletcher.value(), *expected_value);
+    }
+
+    #[cfg(feature = "u48checksum")]
+    #[test]
+    fn fletcher48_test() {
+        // check UX does the right thing
+        let v : u48 = u24::new(0xFFFFFF).into();
+        let v1 = v + v;
+        println!("{:08X}, {:08X}", v1, v1 >> 24);
+        assert_eq!(v1, u48::new(0x01FFFFFE));
+
+        {
+            let data = [
+                0x123456,
+            ]
+                .into_iter()
+                .map(|v| u24::new(v))
+                .collect::<Vec<_>>();
+            let expected_value = u48::new(0x123456123456);
+            run_test(&data, &expected_value);
+        }
+        {
+            let data = [
+                1u32,
+                2u32,
+                3u32,
+            ]
+                .into_iter()
+                .map(|v| u24::new(v))
+                .collect::<Vec<_>>();
+            let expected_value = u48::new(0xA000006);
+            run_test(&data, &expected_value);
+        }
+        {
+            let data = [
+                0xFFFFFF,
+                0xFFFFFF,
+            ]
+                .into_iter()
+                .map(|v| u24::new(v))
+                .collect::<Vec<_>>();
+            let expected_value = u48::new(0x00);
+            run_test(&data, &expected_value);
+        }
+        {
+            let data = [
+                0xFFFFFF,
+                0x000001,
+            ]
+                .into_iter()
+                .map(|v| u24::new(v))
+                .collect::<Vec<_>>();
+            let expected_value = u48::new(0x1000001);
+            run_test(&data, &expected_value);
+        }
     }
 
     #[test]

@@ -9,9 +9,15 @@ readme = "README.md"
 keywords = ["fletcher", "checksum"]
 categories = ["algorithms", "no-std"]
 license = "MIT"
+edition = "2024"
 
 [dependencies]
+ux = {  version = "^0.1", optional = true }
 
 [dev-dependencies]
 byteorder = "^1.3"
 quickcheck = "^1"
+
+[features]
+u48checksum = [ "dep:ux" ]
+
