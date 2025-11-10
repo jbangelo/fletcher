@@ -29,6 +29,11 @@ from the fact that the algorithm uses one's complement math.
 Fletcher's checksum isn't quite as good at detecting bit errors in data as a CRC
 with a well choosen polynomial.
 
+## Algorithm Deviation 
+
+The implemented algorithm is not precisely the fletcher checksum using 
+MOD (BITMASK - 1) but a faster, shifting version.
+
 ## How To Use
 
 If you have an entire block of data you want to get the checksum of you can
@@ -66,4 +71,9 @@ values. This crate provides functions to generate these additional values to
 append to the data, they are the `Fletcher::check_values()` if you use the
 `Fletcher` object or the `checkvalues_fletcher16()`, `checkvalues_fletcher32()`,
 `checkvalues_fletcher64()`.
+
+### 48 Bits Version 
+
+The library supports as well the non-standardized 48 bits version if the feature 
+`u48checksum` is set. 
 
